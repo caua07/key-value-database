@@ -1,0 +1,6 @@
+/mnt/96df69f2-1fba-4911-82a6-d0a6bfcda4c2/code/c-programs/simpleStore/build/CMakeFiles/db_lib.dir
+/mnt/96df69f2-1fba-4911-82a6-d0a6bfcda4c2/code/c-programs/simpleStore/build/CMakeFiles/edit_cache.dir
+/mnt/96df69f2-1fba-4911-82a6-d0a6bfcda4c2/code/c-programs/simpleStore/build/CMakeFiles/rebuild_cache.dir
+/mnt/96df69f2-1fba-4911-82a6-d0a6bfcda4c2/code/c-programs/simpleStore/build/cmd/CMakeFiles/db-exe.dir
+/mnt/96df69f2-1fba-4911-82a6-d0a6bfcda4c2/code/c-programs/simpleStore/build/cmd/CMakeFiles/edit_cache.dir
+/mnt/96df69f2-1fba-4911-82a6-d0a6bfcda4c2/code/c-programs/simpleStore/build/cmd/CMakeFiles/rebuild_cache.dir
