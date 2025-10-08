@@ -7,58 +7,62 @@
 
 
 
-bool
-KeyValueStore::put(std::string key, std::string data)
+Status
+KeyValueStore::put(const std::string& key,const std::string& data)
 { 
   std::unique_lock<std::shared_mutex> lock(mutex);
   if (key.empty() || data.empty()){
     std::cout << "Error: not valid group or data";
-    return {};
+    return Status::ServerError();
   }
 
   auto res = db.emplace(key, data);
 
   if (res.second) {
     std::cout << "\nSuccess: " << data << " inserted into " << key << '\n';
-    return res.second;
+    return Status::OK();
   }
-  return {};
+  return Status::ServerError();
 }
 
-std::optional<std::string>
-KeyValueStore::get(std::string& key) const
+Status
+KeyValueStore::get(const std::string& key) const
 {
   std::shared_lock<std::shared_mutex> lock(mutex);
   auto it = db.find(key);
   if (it == db.end()){
-    return {};
+    return Status::NotFound(key);
   } else {
-    return it->second;
+    return Status::OK();
   }
 }
 
-bool
-KeyValueStore::remove(std::string key)
+Status
+KeyValueStore::remove(const std::string&  key)
 {
   std::unique_lock<std::shared_mutex> lock(mutex);
-  if (db.erase(key) > 0) {
+  auto erase = db.erase(key);
+  if (erase > 0) {
     std::cout << key << " completely erased from the database\n ";
-    return true;
+    return Status::OK();
   }
-  return false;
+  if(db.find(key) == db.end()){
+    return Status::NotFound(key);
+  } else {
+    return Status::ServerError();
+  }
 }
 
-bool
-KeyValueStore::update(std::string key, std::string value)
+Status
+KeyValueStore::update(const std::string& key,const std::string& value)
 {
   std::unique_lock<std::shared_mutex> lock(mutex);
   if (db.find(key) == db.end()){
-    return false;
+    return Status::NotFound(key);
   } else {
     db[key] = value;
-    return true;
+    return Status::OK();
   }
-  return false;
 }
 
 size_t
@@ -68,42 +72,39 @@ KeyValueStore::size()
   return db.size();
 }
 
-bool
+Status
 KeyValueStore::save()
 {
   std::unique_lock<std::shared_mutex> lock(mutex);
   std::ofstream storage("data.json");
   
-  if(storage.is_open()){
-    std::cout << "saving information...\n"; 
-    auto it = db.begin();
+  if(!storage.is_open()) {
+    return Status::IOError();
+  } 
 
-    storage << "{\n";
+  std::cout << "saving information...\n"; 
+  auto it = db.begin();
 
-    while (it != db.end()) {
-      storage << "  \"" << it->first << "\": \"" << it->second << "\"";
+  storage << "{\n";
 
-      ++it;
+  while (it != db.end()) {
+    storage << "  \"" << it->first << "\": \"" << it->second << "\"";
 
-      if (it != db.end()) {
-        storage << ",\n";
-      }
-    }    
+    ++it;
 
-    storage << "\n}\n";
-    storage.close();
+    if (it != db.end()) {
+      storage << ",\n";
+    }
+  }    
 
-    std::cout << "save complete.\n";
-    return true;
-  } else {
-    std::cerr << "Error in oppening file\n";
-    return false;
-  }
+  storage << "\n}\n";
+  storage.close();
 
-  return false;
+  std::cout << "save complete.\n";
+  return Status::OK();
 }
 
-bool
+Status
 KeyValueStore::load()
 {
   std::unique_lock<std::shared_mutex> lock(mutex);
@@ -112,7 +113,7 @@ KeyValueStore::load()
   
   if (!storage.is_open()){
     std::cerr << "Error: Could not open file, verify if file exists\n";
-    return false;
+    return Status::IOError();
   }
 
   try {
@@ -126,7 +127,7 @@ KeyValueStore::load()
 
   } catch (json::parse_error& e){
     std::cerr << "Error parsing JSON: " << e.what() << '\n';
-    return false;
+    return Status::ParseError();
   }
-  return true;
+  return Status::OK();
 }

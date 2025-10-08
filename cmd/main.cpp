@@ -30,8 +30,8 @@ main()
       std::cout << "type the group to get the data in database-\n";
       std::cin >> key;
       auto getData = db.get(key);
-      if(getData){
-        std::cout << *getData << '\n';
+      if(!getData.message.empty()){
+        std::cout << getData.message << '\n';
       }
     } else if (choice == 'r' || choice == 'R') {
       std::cout << "type group to remove-\n";
