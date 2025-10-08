@@ -1,6 +1,0 @@
-/Users/cauaeyer/code/c-programs/key-value-database/build/CMakeFiles/db_lib.dir
-/Users/cauaeyer/code/c-programs/key-value-database/build/CMakeFiles/edit_cache.dir
-/Users/cauaeyer/code/c-programs/key-value-database/build/CMakeFiles/rebuild_cache.dir
-/Users/cauaeyer/code/c-programs/key-value-database/build/cmd/CMakeFiles/db-exe.dir
-/Users/cauaeyer/code/c-programs/key-value-database/build/cmd/CMakeFiles/edit_cache.dir
-/Users/cauaeyer/code/c-programs/key-value-database/build/cmd/CMakeFiles/rebuild_cache.dir
