@@ -1,5 +1,7 @@
 {
-  "name": "caua",
-  "money": "1000",
-  "iq": "120"
+  "pc": "nvidia",
+  "id": "1",
+  "car": "bmw",
+  "name": "breno",
+  "money": "1500"
 }

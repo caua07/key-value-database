@@ -1,10 +1,16 @@
 #include "handmade.h"
 #include <fstream>
+#include <chrono>
+#include <thread>
+#include <shared_mutex>
 #include "json.hpp"
+
+
 
 bool
 KeyValueStore::put(std::string key, std::string data)
 { 
+  std::unique_lock<std::shared_mutex> lock(mutex);
   if (key.empty() || data.empty()){
     std::cout << "Error: not valid group or data";
     return {};
@@ -20,25 +26,24 @@ KeyValueStore::put(std::string key, std::string data)
 }
 
 std::optional<std::string>
-KeyValueStore::get(std::string& key)
+KeyValueStore::get(std::string& key) const
 {
-  if (db.find(key) == db.end()){
+  std::shared_lock<std::shared_mutex> lock(mutex);
+  auto it = db.find(key);
+  if (it == db.end()){
     return {};
   } else {
-    return db[key];
+    return it->second;
   }
 }
 
 bool
 KeyValueStore::remove(std::string key)
 {
-  auto data = get(key);
-  if (data) {
-    auto erased = db.erase(key);
-    if (erased > 0) {
-      std::cout << key << " completely erased from the database\n ";
-      return true;
-    }
+  std::unique_lock<std::shared_mutex> lock(mutex);
+  if (db.erase(key) > 0) {
+    std::cout << key << " completely erased from the database\n ";
+    return true;
   }
   return false;
 }
@@ -46,6 +51,7 @@ KeyValueStore::remove(std::string key)
 bool
 KeyValueStore::update(std::string key, std::string value)
 {
+  std::unique_lock<std::shared_mutex> lock(mutex);
   if (db.find(key) == db.end()){
     return false;
   } else {
@@ -58,12 +64,14 @@ KeyValueStore::update(std::string key, std::string value)
 size_t
 KeyValueStore::size()
 {
+  std::unique_lock<std::shared_mutex> lock(mutex);
   return db.size();
 }
 
 bool
 KeyValueStore::save()
 {
+  std::unique_lock<std::shared_mutex> lock(mutex);
   std::ofstream storage("data.json");
   
   if(storage.is_open()){
@@ -98,6 +106,7 @@ KeyValueStore::save()
 bool
 KeyValueStore::load()
 {
+  std::unique_lock<std::shared_mutex> lock(mutex);
   using json = nlohmann::json;
   std::ifstream storage("data.json");
   
