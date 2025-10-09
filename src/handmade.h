@@ -1,10 +1,9 @@
 #pragma once
-#include "./thread_management/handmande_threadpool.h"
+#include "./handmade/handmande_threadpool.h"
 #include <iostream>
+#include <shared_mutex>
 #include <unordered_map>
 #include <string>
-#include <optional>
-#include <shared_mutex>
 
 enum class StatusCode { OK, NotFound, KeyEmpty, ValueEmpty, IOError, ParseError, ServerError };
 
@@ -15,11 +14,7 @@ struct Status {
   bool ok() const { return code == StatusCode::OK; }
   static Status OK(const std::string& message = "")
   {
-    if (message.empty()) {
-      return {StatusCode::OK, ""}; 
-    } else {
-      return {StatusCode::OK, message};
-    }
+    return {StatusCode::OK, message};
   }
   static Status NotFound(const std::string& key) {
     return {StatusCode::NotFound, "Key not found: " + key};
@@ -46,6 +41,9 @@ class KeyValueStore {
     Status
     put(const std::string& key,const std::string& data);
 
+    Status
+    putBatch(const std::vector<std::pair<std::string, std::string>>& vec);
+
     Status 
     get(const std::string& key) const;
 
@@ -57,6 +55,9 @@ class KeyValueStore {
 
     Status
     exists(const std::string& key);
+
+    std::optional<std::vector<std::string>>
+    listKeys();
 
     size_t
     size();
