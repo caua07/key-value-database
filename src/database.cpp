@@ -1,5 +1,4 @@
 #include "handmade.h"
-#include "json.hpp"
 #include <fstream>
 #include <optional>
 #include <chrono>
@@ -119,30 +118,31 @@ KeyValueStore::size()
 Status
 KeyValueStore::save()
 {
+  writeData writer;
+
   std::unique_lock<std::shared_mutex> lock(mutex);
-  std::ofstream storage("data.json");
+  std::ofstream binary_file;
+
+  binary_file.open("data.bin", std::ios::out | std::ios::binary);
   
-  if(!storage.is_open()) {
+  if(!binary_file.is_open()) {
+    std::cerr << "Error: Could not open file for writing." << '\n';
     return Status::IOError();
   } 
 
   std::cout << "saving information...\n"; 
-  auto it = db.begin();
 
-  storage << "{\n";
+  for (const auto& [key, value]: db){
+    writer.write_char('\n');
+    writer.write_str(key);
+    writer.write_char(':');
+    writer.write_str(value);
+    writer.write_char('\n');
+  }
 
-  while (it != db.end()) {
-    storage << "  \"" << it->first << "\": \"" << it->second << "\"";
+  writer.bufferToDataBin(binary_file);
 
-    ++it;
-
-    if (it != db.end()) {
-      storage << ",\n";
-    }
-  }    
-
-  storage << "\n}\n";
-  storage.close();
+  binary_file.close();
 
   std::cout << "save complete.\n";
   return Status::OK();
@@ -152,26 +152,6 @@ Status
 KeyValueStore::load()
 {
   std::unique_lock<std::shared_mutex> lock(mutex);
-  using json = nlohmann::json;
-  std::ifstream storage("data.json");
-  
-  if (!storage.is_open()){
-    std::cerr << "Error: Could not open file, verify if file exists\n";
-    return Status::IOError();
-  }
 
-  try {
-    json data = json::parse(storage);
-
-    db.clear();
-
-    db = data.get<std::unordered_map<std::string, std::string>>();
-    
-    std::cout << "Data loaded successfully.\n";
-
-  } catch (json::parse_error& e){
-    std::cerr << "Error parsing JSON: " << e.what() << '\n';
-    return Status::ParseError();
-  }
   return Status::OK();
 }
