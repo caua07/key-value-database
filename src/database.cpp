@@ -7,7 +7,6 @@
 #include <shared_mutex>
 
 
-
 Status
 KeyValueStore::put(const std::string& key,const std::string& data)
 { 
