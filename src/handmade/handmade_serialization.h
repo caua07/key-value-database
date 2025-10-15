@@ -79,10 +79,68 @@ class alignedSerializer {
       std::memcpy(buffer.data() + write_pos, str.data(), str.size());
 
       write_pos += str.size();
-      std::cout << "final current_offset: " << write_pos << '\n';
     } 
 
     // READING ...
+    
+    template<typename T>
+    bool
+    read_POD(T& data)
+    {
+      size_t aligned_offset = align_for<T>(read_pos);
+      size_t padding = aligned_offset - read_pos;
+      read_pos += padding;
+      
+      if(read_pos + sizeof(T) > buffer.size()) {
+        return false;
+      }
+
+      std::memcpy(&data, buffer.data() + read_pos, sizeof(T));
+      read_pos += sizeof(T);
+      return true;
+    }
+
+    bool
+    read_str(std::string& str)
+    {
+      size_t aligned_offset = align_for<size_t>(read_pos);
+      size_t padding = aligned_offset - read_pos;
+      read_pos += padding;
+
+      if (read_pos + sizeof(size_t) > buffer.size()){
+        return false;
+      }
+      size_t len;
+
+      std::memcpy(&len, buffer.data() + read_pos, sizeof(size_t));
+      read_pos += sizeof(size_t);
+
+      if(read_pos + len > buffer.size()){ 
+        return false;
+      }
+    
+      str.assign(buffer.data() + read_pos, len);
+      read_pos += len;
+
+      return true;
+    }
+
+    bool
+    read_header(uint64_t& entries)
+    {
+      uint32_t magic, version;
+      if (!read_POD<uint32_t>(magic)) return false;
+      if (magic != MAGIC) {
+        std::cerr << "Error: invalid magic number" << '\n';
+        return false;
+      }
+      if (!read_POD<uint32_t>(version)) {
+        std::cerr << "Unsupported version";
+        return false;
+      }
+      if (!read_POD<uint64_t>(entries)) return false;
+      return true;
+    }
 
     // I/O operaions ...
 
@@ -97,6 +155,36 @@ class alignedSerializer {
       file.write(reinterpret_cast<const char*>(buffer.data()), write_pos);
       return file.good();
     }
+
+    bool
+    load_from_file(const std::string& filename)
+    {
+      std::ifstream file(filename, std::ios::binary);
+
+      if (!file) {
+        std::cerr << "Error: unable to open file." << '\n';
+        return false;
+      }
+
+      // get file size.
+      file.seekg(0, std::ios::end);
+      size_t filesize = file.tellg();
+      file.seekg(0, std::ios::beg);
+
+      buffer.resize(filesize);
+      file.read(buffer.data(), filesize);
+
+      if (!file.good()) {
+        std::cerr << "Error: problem with file integrity." << '\n';
+        return false;
+      }
+
+      write_pos = filesize;
+      read_pos = 0;
+
+      return true;
+    }
+
 
     // UTILITIES
     

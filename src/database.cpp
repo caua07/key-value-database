@@ -105,6 +105,7 @@ KeyValueStore::update(const std::string& key,const std::string& value)
     return Status::NotFound(key);
   } else {
     db[key] = value;
+    std::cout << "Success: updated " << key << " to " << value << '\n';
     return Status::OK();
   }
 }
@@ -133,16 +134,20 @@ KeyValueStore::save()
 
   std::cout << "saving information...\n"; 
 
+  writer.write_header(db.size());
+
   for (const auto& [key, value]: db){
     writer.write_str(key);
     writer.write_str(value);
   }
 
-  writer.save_in_file("data.bin");
+  if (!writer.save_in_file("data.bin")) {
+    std::cerr << "Error: could not save content in file." << '\n';
+    return Status::IOError();
+  }
 
-  binary_file.close();
 
-  std::cout << "save complete.\n";
+  std::cout << "save complete. Saved " << db.size() << " entries.\n";
   return Status::OK();
 }
 
@@ -153,12 +158,35 @@ KeyValueStore::load()
 
   alignedSerializer reader;
 
-  std::ifstream binary_file("data.bin", std::ios::binary);
-  if (!binary_file){
-    std::cerr << "could not open binary file" << '\n';
+  if (!reader.load_from_file("data.bin")) {
     return Status::IOError();
   }
 
+  uint64_t num_entries;
+  if (!reader.read_header(num_entries)){
+    std::cerr << "Error: could not read content from file.\n";
+    return Status::ParseError();
+  }
+  std::cout << "Loading " << num_entries << " entries...\n";
 
+  db.clear();
+
+  for (uint64_t i{0}; i < num_entries; ++i){
+    std::string key, value;
+    if(!reader.read_str(key)){
+      std::cerr << "Error: Failed to read key at entry " << i << '\n';
+      return Status::ParseError();
+    }
+
+    if (!reader.read_str(value)){
+      std::cerr << "Error: Failed to read key at entry " << i << '\n';
+      return Status::ParseError();
+    }
+
+    db.emplace(key, value);
+  }
+
+  std::cout << "Load complete. Loaded " << num_entries << " entries.\n";
+  reader.reset();
   return Status::OK();
 }

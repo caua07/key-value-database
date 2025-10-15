@@ -8,15 +8,17 @@
 int 
 main()
 {
+
+  unsigned int num_threads = std::thread::hardware_concurrency();
+  std::cout << "THREADS AVAILABLE: " << num_threads << '\n';
+  ThreadPool pool(num_threads > 0 ? num_threads : 2);
+
   KeyValueStore db;
   char choice;
   std::string key;
   std::string value;
   db.load();
 
-  unsigned int num_threads = std::thread::hardware_concurrency();
-  std::cout << "THREADS AVAILABLE: " << num_threads << '\n';
-  ThreadPool pool(num_threads > 0 ? num_threads : 2);
 
 
   while (true){
