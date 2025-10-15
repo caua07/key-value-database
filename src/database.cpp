@@ -1,5 +1,6 @@
 #include "handmade.h"
 #include <fstream>
+#include <bits/stdc++.h>
 #include <optional>
 #include <chrono>
 #include <thread>
@@ -118,7 +119,7 @@ KeyValueStore::size()
 Status
 KeyValueStore::save()
 {
-  writeData writer;
+  alignedSerializer writer;
 
   std::unique_lock<std::shared_mutex> lock(mutex);
   std::ofstream binary_file;
@@ -133,14 +134,11 @@ KeyValueStore::save()
   std::cout << "saving information...\n"; 
 
   for (const auto& [key, value]: db){
-    writer.write_char('\n');
     writer.write_str(key);
-    writer.write_char(':');
     writer.write_str(value);
-    writer.write_char('\n');
   }
 
-  writer.bufferToDataBin(binary_file);
+  writer.save_in_file("data.bin");
 
   binary_file.close();
 
@@ -152,6 +150,15 @@ Status
 KeyValueStore::load()
 {
   std::unique_lock<std::shared_mutex> lock(mutex);
+
+  alignedSerializer reader;
+
+  std::ifstream binary_file("data.bin", std::ios::binary);
+  if (!binary_file){
+    std::cerr << "could not open binary file" << '\n';
+    return Status::IOError();
+  }
+
 
   return Status::OK();
 }
