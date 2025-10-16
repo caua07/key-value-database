@@ -3,6 +3,7 @@
 #include "./handmade/handmade_errorHandle.h"
 #include "./handmade/handmade_serialization.h"
 #include "./handmade/handmade_alignedSerialization.h"
+#include "./handmade/handmade_walProtocol.h"
 #include <optional>
 #include <iostream>
 #include <shared_mutex>
