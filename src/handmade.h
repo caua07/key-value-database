@@ -2,6 +2,7 @@
 #include "./handmade/handmade_threadpool.h"
 #include "./handmade/handmade_errorHandle.h"
 #include "./handmade/handmade_serialization.h"
+#include "./handmade/handmade_alignedSerialization.h"
 #include <optional>
 #include <iostream>
 #include <shared_mutex>
@@ -10,7 +11,7 @@
 
 
 class KeyValueStore {
-  protected:
+  private:
     std::unordered_map<std::string, std::string> db;
 
   public:

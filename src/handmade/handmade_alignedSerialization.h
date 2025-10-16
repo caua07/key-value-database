@@ -8,7 +8,7 @@
 #include <cctype>
 #include <iomanip>
 
-class serializer {
+class alignedSerializer {
   private:
     std::vector<char> buffer;
     size_t write_pos{0}; //write current offset
@@ -18,11 +18,22 @@ class serializer {
     static constexpr uint32_t VERSION = 1;
  
   public:
-    serializer(){
+    alignedSerializer(){
       buffer.reserve(4096);
     }
   
     // WRITING ... 
+
+    // calculates alignment needs of data types
+    inline size_t align_up(size_t value, size_t alignment) {
+        return (value + alignment - 1) & ~(alignment - 1);
+    }
+    
+    // helper function for align_up
+    template<typename T>
+    inline size_t align_for(size_t value) {
+        return align_up(value, alignof(T));
+    }
 
     void
     write_header(uint64_t entries)
@@ -35,7 +46,14 @@ class serializer {
     template<typename T>
     void write_POD(const T& data)
     {
-      buffer.resize(write_pos + sizeof(T));
+      size_t aligned_offset = align_for<T>(write_pos);
+      size_t padding = aligned_offset - write_pos;
+      buffer.resize(write_pos + padding + sizeof(T));
+
+      if (padding > 0) {
+        buffer.insert(buffer.begin() + write_pos, padding, 0);
+      }
+      write_pos += padding;
       memcpy(buffer.data() + write_pos, &data, sizeof(T)); 
       write_pos += sizeof(T);
     }
@@ -43,6 +61,14 @@ class serializer {
     void
     write_str(const std::string& str)
     {
+      size_t helper = align_for<size_t>(write_pos);
+      size_t padding = helper - write_pos;
+
+      if (padding > 0) {
+        buffer.insert(buffer.begin() + write_pos, padding, 0);
+      }
+      write_pos += padding;
+      
       size_t len = str.size();
 
       buffer.resize(write_pos + sizeof(size_t) + len);
@@ -60,7 +86,11 @@ class serializer {
     template<typename T>
     bool
     read_POD(T& data)
-    {  
+    {
+      size_t aligned_offset = align_for<T>(read_pos);
+      size_t padding = aligned_offset - read_pos;
+      read_pos += padding;
+      
       if(read_pos + sizeof(T) > buffer.size()) {
         return false;
       }
@@ -73,6 +103,10 @@ class serializer {
     bool
     read_str(std::string& str)
     {
+      size_t aligned_offset = align_for<size_t>(read_pos);
+      size_t padding = aligned_offset - read_pos;
+      read_pos += padding;
+
       if (read_pos + sizeof(size_t) > buffer.size()){
         return false;
       }

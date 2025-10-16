@@ -1,6 +1,5 @@
 #include "handmade.h"
 #include <fstream>
-#include <bits/stdc++.h>
 #include <optional>
 #include <chrono>
 #include <thread>
@@ -120,14 +119,17 @@ KeyValueStore::size()
 Status
 KeyValueStore::save()
 {
-  alignedSerializer writer;
+  serializer writer;
+  alignedSerializer alignedWriter;
 
   std::unique_lock<std::shared_mutex> lock(mutex);
-  std::ofstream binary_file;
+  std::ofstream file;
+  std::ofstream alignedFile;
 
-  binary_file.open("data.bin", std::ios::out | std::ios::binary);
+  file.open("data.bin", std::ios::out | std::ios::binary);
+  alignedFile.open("alignedData.bin", std::ios::out | std::ios::binary);
   
-  if(!binary_file.is_open()) {
+  if(!file.is_open() || !alignedFile.is_open()) {
     std::cerr << "Error: Could not open file for writing." << '\n';
     return Status::IOError();
   } 
@@ -135,13 +137,18 @@ KeyValueStore::save()
   std::cout << "saving information...\n"; 
 
   writer.write_header(db.size());
+  alignedWriter.write_header(db.size());
 
   for (const auto& [key, value]: db){
     writer.write_str(key);
     writer.write_str(value);
   }
+  for (const auto& [key, value]: db){
+    alignedWriter.write_str(key);
+    alignedWriter.write_str(value);
+  }
 
-  if (!writer.save_in_file("data.bin")) {
+  if (!writer.save_in_file("data.bin") || !alignedWriter.save_in_file("alignedData.bin")) {
     std::cerr << "Error: could not save content in file." << '\n';
     return Status::IOError();
   }
@@ -156,14 +163,22 @@ KeyValueStore::load()
 {
   std::unique_lock<std::shared_mutex> lock(mutex);
 
-  alignedSerializer reader;
+  serializer reader;
+  alignedSerializer alignedReader;
 
   if (!reader.load_from_file("data.bin")) {
+    return Status::IOError();
+  }
+  if (!alignedReader.load_from_file("alignedData.bin")) {
     return Status::IOError();
   }
 
   uint64_t num_entries;
   if (!reader.read_header(num_entries)){
+    std::cerr << "Error: could not read content from file.\n";
+    return Status::ParseError();
+  }
+  if (!alignedReader.read_header(num_entries)){
     std::cerr << "Error: could not read content from file.\n";
     return Status::ParseError();
   }
@@ -185,8 +200,23 @@ KeyValueStore::load()
 
     db.emplace(key, value);
   }
+  for (uint64_t i{0}; i < num_entries; ++i){
+    std::string key, value;
+    if(!alignedReader.read_str(key)){
+      std::cerr << "Error: Failed to read key at entry " << i << '\n';
+      return Status::ParseError();
+    }
+
+    if (!alignedReader.read_str(value)){
+      std::cerr << "Error: Failed to read key at entry " << i << '\n';
+      return Status::ParseError();
+    }
+
+    db.emplace(key, value);
+  }
 
   std::cout << "Load complete. Loaded " << num_entries << " entries.\n";
   reader.reset();
+  alignedReader.reset();
   return Status::OK();
 }
