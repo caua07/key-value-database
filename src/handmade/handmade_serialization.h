@@ -53,10 +53,10 @@ class serializer {
       std::memcpy(buffer.data() + write_pos, str.data(), str.size());
 
       write_pos += str.size();
-    } 
+    }
 
     // READING ...
-    
+
     template<typename T>
     bool
     read_POD(T& data)
