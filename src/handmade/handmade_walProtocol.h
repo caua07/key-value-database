@@ -10,7 +10,7 @@
 enum class Operation : uint8_t {
   PUT,
   UPDATE,
-  DELETE,
+  REMOVE,
   GET,
   BEGIN_TRANSACTION,
   COMMIT_TRANSACTION
@@ -64,7 +64,7 @@ class WalManager {
     flush()
     {
       //flush all from transactioninit to commit comment 
-      
+      return Status::OK();     
     }
 
     Status
@@ -73,44 +73,82 @@ class WalManager {
       std::unique_lock<std::shared_mutex> lock(mutex);
 
       if (key.empty()) return Status::ServerError();
-      writeToBuffer({Operation::PUT, key, value, txnID});
+      beginTxn_unsafe();
+      std::cout << "got here\n";
+      writeToBuffer_unsafe({Operation::PUT, key, value, txnID});
+      commit_unsafe();
       return Status::OK();
     }
 
     Status
-    get(const std::string& key)
+    update(const std::string& key, const std::string& value)
     {
-      std::shared_lock<std::shared_mutex> lock(mutex);
+      std::unique_lock<std::shared_mutex> lock(mutex);
 
       if (key.empty()) return Status::ServerError();
-      // to be done...
+      writeToBuffer_unsafe({Operation::UPDATE, key, value, txnID});
+      return Status::OK();
+    }
+
+    Status
+    remove(const std::string& key)
+    {
+      std::unique_lock<std::shared_mutex> lock(mutex);
+
+      if (key.empty()) return Status::ServerError();
+      writeToBuffer_unsafe({Operation::REMOVE, key, "", txnID});
+      return Status::OK();
     }
 
     uint64_t
     beginTxn()
     {
       std::unique_lock<std::shared_mutex> lock(mutex);
-
       if (active_txnID != 0 ){
         std::cerr << "Error: Transaction aready in progress.\n";
         return 0;
       }
       ++active_txnID;
       ++txnID;
-      writeToBuffer(Operation::BEGIN_TRANSACTION, "", "", txnID);
+      writeToBuffer_unsafe({Operation::BEGIN_TRANSACTION, "", "", txnID});
       return txnID;
     }
-    
+
+    uint64_t
+    beginTxn_unsafe()
+    {
+      if (active_txnID != 0 ){
+        std::cerr << "Error: Transaction aready in progress.\n";
+        return 0;
+      }
+      ++active_txnID;
+      ++txnID;
+      std::cout << "beginning active id: " << active_txnID << '\n';
+      writeToBuffer_unsafe({Operation::BEGIN_TRANSACTION, "", "", txnID});
+      return txnID;
+    }
+
     Status
     commit()
     {
       std::unique_lock<std::shared_mutex> lock(mutex);
-
       if (active_txnID == 0) {
         std::cerr << "Error: can't commit if theres no transactin open";
         return Status::ServerError();
       }
-      writeToBuffer(Operation::COMMIT_TRANSACTION, "", "", txnID);
+      writeToBuffer_unsafe({Operation::COMMIT_TRANSACTION, "", "", txnID});
+      active_txnID = 0;
+      return Status::OK();
+    }
+    
+    Status
+    commit_unsafe()
+    {
+      if (active_txnID == 0) {
+        std::cerr << "Error: can't commit if theres no transactin open";
+        return Status::ServerError();
+      }
+      writeToBuffer_unsafe({Operation::COMMIT_TRANSACTION, "", "", txnID});
       active_txnID = 0;
       return Status::OK();
     }
@@ -118,22 +156,26 @@ class WalManager {
   private:
 
     Status
-    writeToBuffer(const logEntry& entry)
+    writeToBuffer_unsafe(const logEntry& entry)
     {
-      if (active_txnID == 0) {
-        implicitCommit = true;
-        beginTxn();
+      if (static_cast<uint8_t>(entry.op) == 4) {
+        std::cout << "begin txn writing\n";
+      } else if (static_cast<uint8_t>(entry.op) == 5) {
+        std::cout << "commit_unsafe writing\n";
       }
+
+      std::cout << "begin \n";
 
       auto now = std::chrono::system_clock::now();
       uint64_t timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();     
       
       uint32_t len1 = entry.key.size();
       uint32_t len2 = entry.value.size();
-      uint8_t operation = static_cast<uint8_t>(logEntry.op);
+      uint8_t operation = static_cast<uint8_t>(entry.op);
 
       size_t original_buffer_size = bufferPool.size();
-      bufferPool.resize(original_buffer_size + sizeof(uint64_t)*2 + sizeof(uint32_t)*2 + sizeof(uint8_t) + len1 + len2 );
+      bufferPool.resize(original_buffer_size + sizeof(uint64_t)*3 + sizeof(uint32_t)*2 + sizeof(uint8_t) + len1 + len2 );
+      std::cout << "buffer size: " << bufferPool.size() << '\n';
       char* ptr = bufferPool.data() + original_buffer_size;
 
       //LSN
@@ -153,12 +195,11 @@ class WalManager {
       //value
       std::memcpy(ptr, entry.value.data(), len2); ptr += len2;
 
+      std::cout << "alocated\n";
+
 
       ++LSN;
       ++totalOperations;
-      if (implicitCommit == true){
-        commit();
-      }
+      return Status::OK();
     }
-    
 };

@@ -14,6 +14,7 @@
 class KeyValueStore {
   private:
     std::unordered_map<std::string, std::string> db;
+    WalManager wal;
 
   public:
     // public variables

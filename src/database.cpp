@@ -5,29 +5,33 @@
 #include <thread>
 #include <shared_mutex>
 
-
 Status
 KeyValueStore::put(const std::string& key,const std::string& data)
 { 
   std::unique_lock<std::shared_mutex> lock(mutex);
+
   if (key.empty()){
     std::cout << "Error: not valid group or data";
     return Status::ServerError();
   }
 
-  auto res = db.emplace(key, data);
-
-  if (res.second) {
-    std::cout << "\nSuccess: " << data << " inserted into " << key << '\n';
-    return Status::OK();
+  Status res = wal.push(key, data);
+  
+  if (res.ok()) {
+    db.emplace(key, data);
+    std::cout << "put went allright";
   }
-  return Status::ServerError();
+
+  return res;
 }
 
 Status
 KeyValueStore::putBatch(const std::vector<std::pair<std::string, std::string>>& vec)
 {
   std::unique_lock<std::shared_mutex> lock(mutex);
+
+  wal.beginTxn();
+
   if (vec.size() == 0){
     return Status::ServerError();
   }
@@ -39,7 +43,12 @@ KeyValueStore::putBatch(const std::vector<std::pair<std::string, std::string>>& 
       ++errors;
       continue;
     }
-    auto res = db.emplace(key, data);
+    Status res = wal.push(key, data);
+    if (!res.ok()) {
+      ++errors;
+    } else {
+      auto res = db.emplace(key, data);
+    }
     ++successes;
   }
   if (successes > 0 && errors > 0){
@@ -60,9 +69,9 @@ KeyValueStore::listKeys()
   std::unique_lock<std::shared_mutex> lock(mutex);
 
   std::vector<std::string> vec;
-  for (const auto& [key, value]: db){
+  for (const auto& [key, data]: db){
     std::cout << key << '\n';
-    vec.emplace_back(value);
+    vec.emplace_back(data);
   }
   
   return vec;
@@ -83,17 +92,28 @@ KeyValueStore::get(const std::string& key) const
 Status
 KeyValueStore::remove(const std::string&  key)
 {
+  //complex logic to be made
+
   std::unique_lock<std::shared_mutex> lock(mutex);
-  auto erase = db.erase(key);
-  if (erase > 0) {
-    std::cout << key << " completely erased from the database\n ";
-    return Status::OK();
-  }
-  if(db.find(key) == db.end()){
+
+  if (db.find(key) == db.end()) {
+    std::cerr << key << " not found to be removed.\n";
     return Status::NotFound(key);
-  } else {
-    return Status::ServerError();
   }
+
+  Status res = wal.remove(key);
+
+  if (res.ok()) {
+    auto erase = db.erase(key);
+    if (erase < 1) {
+      return Status::ServerError();
+    } else {
+      return Status::OK();
+    }
+  } 
+
+  return res;
+
 }
 
 Status
@@ -103,6 +123,10 @@ KeyValueStore::update(const std::string& key,const std::string& value)
   if (db.find(key) == db.end()){
     return Status::NotFound(key);
   } else {
+    Status res = wal.update(key, value);
+    if (res.ok()) {
+      return Status::ServerError();
+    }
     db[key] = value;
     std::cout << "Success: updated " << key << " to " << value << '\n';
     return Status::OK();
@@ -139,13 +163,13 @@ KeyValueStore::save()
   writer.write_header(db.size());
   alignedWriter.write_header(db.size());
 
-  for (const auto& [key, value]: db){
+  for (const auto& [key, data]: db){
     writer.write_str(key);
-    writer.write_str(value);
+    writer.write_str(data);
   }
-  for (const auto& [key, value]: db){
+  for (const auto& [key, data]: db){
     alignedWriter.write_str(key);
-    alignedWriter.write_str(value);
+    alignedWriter.write_str(data);
   }
 
   if (!writer.save_in_file("data.bin") || !alignedWriter.save_in_file("alignedData.bin")) {
@@ -187,32 +211,32 @@ KeyValueStore::load()
   db.clear();
 
   for (uint64_t i{0}; i < num_entries; ++i){
-    std::string key, value;
+    std::string key, data;
     if(!reader.read_str(key)){
       std::cerr << "Error: Failed to read key at entry " << i << '\n';
       return Status::ParseError();
     }
 
-    if (!reader.read_str(value)){
+    if (!reader.read_str(data)){
       std::cerr << "Error: Failed to read key at entry " << i << '\n';
       return Status::ParseError();
     }
 
-    db.emplace(key, value);
+    db.emplace(key, data);
   }
   for (uint64_t i{0}; i < num_entries; ++i){
-    std::string key, value;
+    std::string key, data;
     if(!alignedReader.read_str(key)){
       std::cerr << "Error: Failed to read key at entry " << i << '\n';
       return Status::ParseError();
     }
 
-    if (!alignedReader.read_str(value)){
+    if (!alignedReader.read_str(data)){
       std::cerr << "Error: Failed to read key at entry " << i << '\n';
       return Status::ParseError();
     }
 
-    db.emplace(key, value);
+    db.emplace(key, data);
   }
 
   std::cout << "Load complete. Loaded " << num_entries << " entries.\n";
